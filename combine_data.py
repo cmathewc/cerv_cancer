@@ -12,7 +12,8 @@ Creates a file called img_key.csv with details.
 
 import os, csv
 
-os.chdir("/Data/cerv_cancer")
+#change drectory to root for this project
+os.chdir("/Data/cerv_cancer") 
 
 #print(os.getcwd())
 fieldnames = ['Path','Type_1','Type_2','Type_3']
