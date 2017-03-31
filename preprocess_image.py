@@ -7,12 +7,12 @@ Created on Tue Mar 28 20:57:15 2017
 
 Preprocess images used for cervical cancer screening challenge
 """
-import os, cv2
+import os, cv2, csv
 import numpy as np
 os.chdir("/Data/cerv_cancer") 
 
-file_path = os.path.join(os.getcwd(), 'Data','train', 'Type_1', '0.jpg')
-img = cv2.imread(file_path)
+#file_path = os.path.join(os.getcwd(), 'Data','train', 'Type_1', '0.jpg')
+#img = cv2.imread(file_path)
 #
 #
 ##def crop_image(img):
@@ -50,24 +50,38 @@ def hist_eq_crop_img(img):
     img_hsv[:, :, 2] = cv2.equalizeHist(img_hsv[:,:,2]) #Perform Hist Eq. on value channel
     
     img_bgr_crop = crop_resize_img(cv2.cvtColor(img_hsv, cv2.COLOR_HSV2BGR)) #Reconvert to BGR, crop and resize it
+    disp_image = 0;
     
-    screen_res = 1280, 720
-    scale_width = screen_res[0] / img.shape[1]
-    scale_height = screen_res[1] / img.shape[0]
-    scale = min(scale_width, scale_height)
-    window_width = int(img.shape[1] * scale)
-    window_height = int(img.shape[0] * scale)
-    cv2.namedWindow('dst_rt', cv2.WINDOW_NORMAL)
-    cv2.resizeWindow('dst_rt', window_width, window_height)
-    cv2.imshow('dst_rt', img)
-    
-    cv2.namedWindow('dst_rt2', cv2.WINDOW_NORMAL)
-    cv2.resizeWindow('dst_rt2', 512, 512)
-    cv2.imshow('dst_rt2', img_bgr_crop)
-    
-    cv2.waitKey(0)
-    cv2.destroyAllWindows()
+    if disp_image:
+                                              
+        screen_res = 1280, 720
+        scale_width = screen_res[0] / img.shape[1]
+        scale_height = screen_res[1] / img.shape[0]
+        scale = min(scale_width, scale_height)
+        window_width = int(img.shape[1] * scale)
+        window_height = int(img.shape[0] * scale)
+        cv2.namedWindow('dst_rt', cv2.WINDOW_NORMAL)
+        cv2.resizeWindow('dst_rt', window_width, window_height)
+        cv2.imshow('dst_rt', img)
+        
+        cv2.namedWindow('dst_rt2', cv2.WINDOW_NORMAL)
+        cv2.resizeWindow('dst_rt2', 512, 512)
+        cv2.imshow('dst_rt2', img_bgr_crop)
+        
+        cv2.waitKey(0)
+        cv2.destroyAllWindows()
     return img_bgr_crop
+
+def read_process_image():
+    os.chdir("/Data/cerv_cancer") 
+    with open('img_key.csv','r') as csvfile:
+        reader = csv.DictReader(csvfile)
+        for row in reader:
+            img_path = os.path.join(os.getcwd(),'Data',row['Path'])
+            full_img = cv2.imread(img_path)
+            dsample_img = hist_eq_crop_img(full_img)
+            cv2.imwrite(img_path.replace('Data/train','Data/train_small'), dsample_img)
+    
 
 #return img
 #if __name__ == "__main__":
