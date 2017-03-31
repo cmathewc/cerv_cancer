@@ -1,2 +1,3 @@
 #Data directories
 [Dd]ata/
+__pycache__/
