@@ -42,14 +42,21 @@ def crop_black_bkgd(img):
 #    
 #
 def crop_resize_img(img):
-    img_crop_resize = cv2.resize(crop_black_bkgd(img), dsize = (512, 512))
+    img_crop_resize = cv2.resize(crop_black_bkgd(img), dsize = (1024, 1024))
     return img_crop_resize
 
 def hist_eq_crop_img(img):
-    img_hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV) #Convert BGR to HSV
-    img_hsv[:, :, 2] = cv2.equalizeHist(img_hsv[:,:,2]) #Perform Hist Eq. on value channel
+#    img_hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV) #Convert BGR to HSV
+#    img_hsv[:, :, 2] = cv2.equalizeHist(img_hsv[:,:,2]) #Perform Hist Eq. on value channel
+#    
+#    img_bgr_crop = crop_resize_img(cv2.cvtColor(img_hsv, cv2.COLOR_HSV2BGR)) #Reconvert to BGR, crop and resize it
+
+#    Instead of cropping and resizing histogram equalized image, histogram equalize cropped image and then resize
     
-    img_bgr_crop = crop_resize_img(cv2.cvtColor(img_hsv, cv2.COLOR_HSV2BGR)) #Reconvert to BGR, crop and resize it
+    img_crop = crop_black_bkgd(img) # Crop out black background
+    img_crop_hsv = cv2.cvtColor(img_crop, cv2.COLOR_BGR2HSV) #Convert BGR to HSV
+    img_crop_hsv[:, :, 2] = cv2.equalizeHist(img_crop_hsv[:,:,2]) #Perform Hist Eq. on value channel
+    
     disp_image = 0;
     
     if disp_image:
@@ -65,12 +72,14 @@ def hist_eq_crop_img(img):
         cv2.imshow('dst_rt', img)
         
         cv2.namedWindow('dst_rt2', cv2.WINDOW_NORMAL)
-        cv2.resizeWindow('dst_rt2', 512, 512)
+        cv2.resizeWindow('dst_rt2', 1024, 1024)
         cv2.imshow('dst_rt2', img_bgr_crop)
         
         cv2.waitKey(0)
         cv2.destroyAllWindows()
-    return img_bgr_crop
+    
+#    return img_bgr_crop
+    return cv2.resize(cv2.cvtColor(img_crop_hsv, cv2.COLOR_HSV2BGR), dsize = (1024, 1024))
 
 def read_process_image():
     os.chdir("/Data/cerv_cancer") 
@@ -80,7 +89,7 @@ def read_process_image():
             img_path = os.path.join(os.getcwd(),'Data',row['Path'])
             full_img = cv2.imread(img_path)
             dsample_img = hist_eq_crop_img(full_img)
-            cv2.imwrite(img_path.replace('Data/train','Data/train_small'), dsample_img)
+            cv2.imwrite(img_path.replace('Data/train','Data/train_int2'), dsample_img)
     
 
 #return img
