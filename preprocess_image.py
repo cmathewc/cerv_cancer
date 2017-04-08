@@ -24,28 +24,31 @@ def crop_black_bkgd(img):
 #    #Invert the image to be white on black for compatibility with findContours function.
 #    #Code from https://www.kaggle.com/cpruce/intel-mobileodt-cervical-cancer-screening/cervix-image-segmentation
 #
-    img_hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
-#    cv2.imshow('dst_rt', imgray)
-#    cv2.waitKey(0)
-    #Binarize the image and call it thresh.
-    ret, thresh = cv2.threshold(img_hsv[:,:,2], 127, 255, cv2.THRESH_BINARY) #Threshold on the V channel to avoid errors in dark images
-#    cv2.imshow('dst_rt', thresh)
-#    cv2.waitKey(0)
-    #Find all the contours in thresh. In your case the 3 and the additional strike
-    im2, contours, hierarchy = cv2.findContours(thresh, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
-    #Calculate bounding rectangles for each contour.
-    rects = [cv2.boundingRect(cnt) for cnt in contours]
-    
-    #Calculate the combined bounding rectangle points.
-    top_x = min([x for (x, y, w, h) in rects])
-    top_y = min([y for (x, y, w, h) in rects])
-    bottom_x = max([x+w for (x, y, w, h) in rects])
-    bottom_y = max([y+h for (x, y, w, h) in rects])
-    
-    #Draw the rectangle on the image
-    #    out = cv2.rectangle(img, (top_x, top_y), (bottom_x, bottom_y), (0, 255, 0), 2)
-    crop = img[top_y:bottom_y,top_x:bottom_x]
-    return crop #thresh
+    try:
+      img_hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+  #    cv2.imshow('dst_rt', imgray)
+  #    cv2.waitKey(0)
+      #Binarize the image and call it thresh.
+      ret, thresh = cv2.threshold(img_hsv[:,:,2], 127, 255, cv2.THRESH_BINARY) #Threshold on the V channel to avoid errors in dark images
+  #    cv2.imshow('dst_rt', thresh)
+  #    cv2.waitKey(0)
+      #Find all the contours in thresh. In your case the 3 and the additional strike
+      im2, contours, hierarchy = cv2.findContours(thresh, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
+      #Calculate bounding rectangles for each contour.
+      rects = [cv2.boundingRect(cnt) for cnt in contours]
+      
+      #Calculate the combined bounding rectangle points.
+      top_x = min([x for (x, y, w, h) in rects])
+      top_y = min([y for (x, y, w, h) in rects])
+      bottom_x = max([x+w for (x, y, w, h) in rects])
+      bottom_y = max([y+h for (x, y, w, h) in rects])
+      
+      #Draw the rectangle on the image
+      #    out = cv2.rectangle(img, (top_x, top_y), (bottom_x, bottom_y), (0, 255, 0), 2)
+      crop = img[top_y:bottom_y,top_x:bottom_x]
+      return crop #thresh
+    except:
+      return img
 #    
 #
 def crop_resize_img(img):
@@ -89,35 +92,36 @@ def hist_eq_crop_img(img):
     return cv2.resize(cv2.cvtColor(img_crop_hsv, cv2.COLOR_HSV2BGR), dsize = (512, 512))
 
 def process_image(img_path):
-#  try:
+  try:
     full_img = cv2.imread(img_path)
     dsample_img = hist_eq_crop_img(full_img)
-    cv2.imwrite(img_path.replace('Data/additional','Data/additional_small2'), dsample_img)
-#  except ValueError:
-#    print(img_path)
+    cv2.imwrite(img_path.replace('Data/test','Data/test_small'), dsample_img)
+  except:
+    print(img_path)
     
 
-#def read_process_image():
+###def read_process_image():
 if __name__ == '__main__':
     os.chdir("/Data/cerv_cancer") 
     img_path = [];
     jobs = [];
-    with open('img_key_additional.csv','r') as csvfile:
+    with open('img_key_test.csv','r') as csvfile:
         reader = csv.reader(csvfile)
         pool = multiprocessing.Pool(6)
         for row in reader:
             img_path.append(row[0])
         pool.map(process_image, img_path)
-
-
+        
+        pool.close()
+        pool.terminate()
+        pool.join()
 
 #        for i in range(len(img_path)):
-#          p = multiprocessing.process(target = process_image, args=(img_path[i]))
-#          jobs.append(p)
-#          p.start()
-#            full_img = cv2.imread(img_path)
+#            full_img = cv2.imread(img_path[i])
 #            dsample_img = hist_eq_crop_img(full_img)
-#            cv2.imwrite(img_path.replace('Data/additional','Data/additional_small2'), dsample_img)
+#            cv2.imwrite(img_path[i].replace('Data/test','Data/test_small'), dsample_img)
+            
+        csvfile.close()
     
 
 #return img
