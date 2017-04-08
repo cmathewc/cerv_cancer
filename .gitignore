@@ -1,3 +1,6 @@
 #Data directories
 [Dd]ata/
 __pycache__/
+*.npz
+[Tt]emp/
+*.png
