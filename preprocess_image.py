@@ -24,11 +24,11 @@ def crop_black_bkgd(img):
 #    #Invert the image to be white on black for compatibility with findContours function.
 #    #Code from https://www.kaggle.com/cpruce/intel-mobileodt-cervical-cancer-screening/cervix-image-segmentation
 #
-    imgray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    img_hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
 #    cv2.imshow('dst_rt', imgray)
 #    cv2.waitKey(0)
     #Binarize the image and call it thresh.
-    ret, thresh = cv2.threshold(imgray, 127, 255, cv2.THRESH_BINARY)
+    ret, thresh = cv2.threshold(img_hsv[:,:,2], 127, 255, cv2.THRESH_BINARY) #Threshold on the V channel to avoid errors in dark images
 #    cv2.imshow('dst_rt', thresh)
 #    cv2.waitKey(0)
     #Find all the contours in thresh. In your case the 3 and the additional strike
@@ -89,12 +89,12 @@ def hist_eq_crop_img(img):
     return cv2.resize(cv2.cvtColor(img_crop_hsv, cv2.COLOR_HSV2BGR), dsize = (512, 512))
 
 def process_image(img_path):
-  try:
+#  try:
     full_img = cv2.imread(img_path)
     dsample_img = hist_eq_crop_img(full_img)
     cv2.imwrite(img_path.replace('Data/additional','Data/additional_small2'), dsample_img)
-  except ValueError:
-    print(img_path)
+#  except ValueError:
+#    print(img_path)
     
 
 #def read_process_image():
@@ -107,9 +107,10 @@ if __name__ == '__main__':
         pool = multiprocessing.Pool(6)
         for row in reader:
             img_path.append(row[0])
-        
-          
         pool.map(process_image, img_path)
+
+
+
 #        for i in range(len(img_path)):
 #          p = multiprocessing.process(target = process_image, args=(img_path[i]))
 #          jobs.append(p)
