@@ -4,7 +4,7 @@ import matplotlib.image as mpimg
 import matplotlib.pyplot as plt
 import sklearn
 from keras.models import Sequential
-from keras.layers import Flatten, Dense, Lambda, Dropout, Cropping2D, BatchNormalization
+from keras.layers import Flatten, Dense, Lambda, Dropout, Cropping2D, BatchNormalization, Activation
 from keras.layers.convolutional import Convolution2D
 from keras.layers.pooling import MaxPooling2D
 from keras.regularizers import l2
@@ -21,7 +21,9 @@ def readLog(filename, nb_classes=3):
     with open(filename) as csvDataFile:
         csvReader = csv.reader(csvDataFile)
         for row in csvReader:
-            img = mpimg.imread(row[0])
+            img = cv2.imread(row[0]).astype('float32')
+            if img == None:
+              print('Error in reading img in file {0}'.format(row[0]))
             type = np_utils.to_categorical(float(row[1]), nb_classes)
             image.append(img)
             category.append(type)
@@ -37,17 +39,20 @@ def generator(samples, batch_size=32, nb_classes=3):
             batch_samples = samples[offset:offset+batch_size]
 
             images = []
-            category = []
+            img_category = []
 #            if (mode=='center'):
             for batch_sample in batch_samples:
-                image = mpimg.imread(batch_sample[0])
-                type = float(batch_sample[1])
-                images.append(image)
-                category.append(type)
+              image = mpimg.imread(batch_sample[0]).astype('float32')
+              img_type = float(batch_sample[1])
+              images.append(image)
+              img_category.append(img_type)
 
             # trim image to only see section with road
             X_train = np.array(images)
-            y_train = np.array(np_utils.to_categorical(category, nb_classes))
+            y_train = np_utils.to_categorical(np.array(img_category)-1, nb_classes)
+#            y_train = np.array(img_category)
+            
+#            gen_output = tuple(sklearn.utils.shuffle(X_train, y_train))
             yield sklearn.utils.shuffle(X_train, y_train)
 
 
@@ -79,13 +84,13 @@ def locnet():
 os.chdir("/Data/cerv_cancer") 
 log_file = './img_key.csv'
     
-num_epochs = 150
+num_epochs = 200
 batchSize = 32              # Select batch size
 Activation_type = 'relu'    # Select activation type
 nb_samples = 3
 inputShape = (512, 512,3)
 regularization_rate = 0.04
-dropout_prob = 0.6
+dropout_prob = 0.4
 
 ### Read the drive log csv file
 samples = []
@@ -93,7 +98,8 @@ with open(log_file) as csvfile:
     reader = csv.reader(csvfile)
     for line in reader:
         samples.append(line)
- 
+        
+csvfile.close()
 print('Total number of samples = {}'.format(len(samples)))
 
 ### Split captured data as Training and Validation Set
@@ -102,13 +108,13 @@ train_samples, validation_samples = train_test_split(samples, test_size=0.2)
 
 
 ### compile and train the model using the generator function
-#train_generator = generator(train_samples, batch_size=batchSize)
-#validation_generator = generator(validation_samples, batch_size=batchSize)
-#print('Generator initialized...')
+train_generator = generator(train_samples, batch_size=batchSize)
+validation_generator = generator(validation_samples, batch_size=batchSize)
+print('Generator initialized...')
 
-data = np.load('img_data.npz')
-img_data = data['img_data']
-label_data = data['label_data']
+#data = np.load('img_data.npz')
+#img_data = data['img_data']
+#label_data = data['label_data']
 
 print('Training...')
 ### Setup the Keras model
@@ -132,7 +138,7 @@ model.add(BatchNormalization())
 model.add(MaxPooling2D(pool_size=(2, 2)))
 model.add(Convolution2D(128, (3, 3), padding='same', activation=Activation_type, kernel_regularizer=l2(regularization_rate)))
 model.add(BatchNormalization())
-model.add(Convolution2D(64, (3, 3), padding='same', activation=Activation_type, kernel_regularizer=l2(regularization_rate)))
+model.add(Convolution2D(128, (3, 3), padding='same', activation=Activation_type, kernel_regularizer=l2(regularization_rate)))
 model.add(Convolution2D(64, (3, 3), padding='same', activation=Activation_type, kernel_regularizer=l2(regularization_rate)))
 model.add(MaxPooling2D(pool_size=(4, 4)))
 model.add(Flatten())
@@ -145,9 +151,18 @@ model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accur
 
 checkpointer = ModelCheckpoint(filepath="./output/weights.hdf5", verbose=1, save_best_only=True, save_weights_only=True)
 # history_object = model.fit(X_train, y_train, validation_split=0.2, show_accuracy=True, shuffle=True, nb_epoch=epochs)
-history_object = model.fit(img_data, label_data, batch_size= batchSize, 
-                                     validation_split= 0.2, shuffle = 1, 
-                                     epochs = num_epochs, callbacks = [checkpointer], verbose = 1)
+#history_object = model.fit(img_data, label_data, batch_size= batchSize, 
+#                                     validation_split= 0.2, shuffle = 1, 
+#                                     epochs = num_epochs, callbacks = [checkpointer], verbose = 1)
+
+#a = next(train_generator)
+#b = next(validation_generator)
+#print(len(a))
+#print(len(b))
+history_object = model.fit_generator(train_generator, steps_per_epoch = np.floor(len(train_samples)/batchSize).astype('int'),
+                                     validation_data =validation_generator, validation_steps = np.floor(len(train_samples)/batchSize).astype('int'), 
+                                     epochs=num_epochs, verbose = 1, callbacks = [checkpointer])
+
 
 
 model.save('./output/model.h5')
