@@ -8,22 +8,29 @@ Created on Tue Mar 28 20:57:15 2017
 Preprocess images used for cervical cancer screening challenge
 """
 import os, cv2, csv
+import multiprocessing
 import numpy as np
 os.chdir("/Data/cerv_cancer") 
 
-#file_path = os.path.join(os.getcwd(), 'Data','train', 'Type_1', '0.jpg')
-#img = cv2.imread(file_path)
+file_path = os.path.join(os.getcwd(), 'Data','train', 'Type_1', '0.jpg')
+img = cv2.imread(file_path)
 #
 #
+cv2.namedWindow('dst_rt', cv2.WINDOW_KEEPRATIO)
+cv2.resizeWindow('dst_rt', 512, 512)
+    
 ##def crop_image(img):
 def crop_black_bkgd(img):
 #    #Invert the image to be white on black for compatibility with findContours function.
 #    #Code from https://www.kaggle.com/cpruce/intel-mobileodt-cervical-cancer-screening/cervix-image-segmentation
 #
     imgray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+#    cv2.imshow('dst_rt', imgray)
+#    cv2.waitKey(0)
     #Binarize the image and call it thresh.
     ret, thresh = cv2.threshold(imgray, 127, 255, cv2.THRESH_BINARY)
-    
+#    cv2.imshow('dst_rt', thresh)
+#    cv2.waitKey(0)
     #Find all the contours in thresh. In your case the 3 and the additional strike
     im2, contours, hierarchy = cv2.findContours(thresh, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
     #Calculate bounding rectangles for each contour.
@@ -42,7 +49,7 @@ def crop_black_bkgd(img):
 #    
 #
 def crop_resize_img(img):
-    img_crop_resize = cv2.resize(crop_black_bkgd(img), dsize = (1024, 1024))
+    img_crop_resize = cv2.resize(crop_black_bkgd(img), dsize = (512, 512))
     return img_crop_resize
 
 def hist_eq_crop_img(img):
@@ -57,7 +64,7 @@ def hist_eq_crop_img(img):
     img_crop_hsv = cv2.cvtColor(img_crop, cv2.COLOR_BGR2HSV) #Convert BGR to HSV
     img_crop_hsv[:, :, 2] = cv2.equalizeHist(img_crop_hsv[:,:,2]) #Perform Hist Eq. on value channel
     
-    disp_image = 0;
+    disp_image = 0
     
     if disp_image:
                                               
@@ -79,23 +86,43 @@ def hist_eq_crop_img(img):
         cv2.destroyAllWindows()
     
 #    return img_bgr_crop
-    return cv2.resize(cv2.cvtColor(img_crop_hsv, cv2.COLOR_HSV2BGR), dsize = (1024, 1024))
+    return cv2.resize(cv2.cvtColor(img_crop_hsv, cv2.COLOR_HSV2BGR), dsize = (512, 512))
 
-def read_process_image():
+def process_image(img_path):
+  try:
+    full_img = cv2.imread(img_path)
+    dsample_img = hist_eq_crop_img(full_img)
+    cv2.imwrite(img_path.replace('Data/additional','Data/additional_small2'), dsample_img)
+  except ValueError:
+    print(img_path)
+    
+
+#def read_process_image():
+if __name__ == '__main__':
     os.chdir("/Data/cerv_cancer") 
-    with open('img_key.csv','r') as csvfile:
-        reader = csv.DictReader(csvfile)
+    img_path = [];
+    jobs = [];
+    with open('img_key_additional.csv','r') as csvfile:
+        reader = csv.reader(csvfile)
+        pool = multiprocessing.Pool(6)
         for row in reader:
-            img_path = os.path.join(os.getcwd(),'Data',row['Path'])
-            full_img = cv2.imread(img_path)
-            dsample_img = hist_eq_crop_img(full_img)
-            cv2.imwrite(img_path.replace('Data/train','Data/train_int2'), dsample_img)
+            img_path.append(row[0])
+        
+          
+        pool.map(process_image, img_path)
+#        for i in range(len(img_path)):
+#          p = multiprocessing.process(target = process_image, args=(img_path[i]))
+#          jobs.append(p)
+#          p.start()
+#            full_img = cv2.imread(img_path)
+#            dsample_img = hist_eq_crop_img(full_img)
+#            cv2.imwrite(img_path.replace('Data/additional','Data/additional_small2'), dsample_img)
     
 
 #return img
 #if __name__ == "__main__":
 #    main()
-
+#crop_black_bkgd(img)
 enable_disp = 0
 if enable_disp:
     
@@ -129,7 +156,7 @@ if enable_disp:
     
     
     
-    crop_hsv = cv2.cvtColor(crop, cv2.COLOR_BGR2HSV)
+    crop_hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
     crop_hsv_val = crop_hsv[:,:,2]
     h_clahe = cv2.createCLAHE(tileGridSize = (1024, 1024))
     crop_hsv_val_he = cv2.equalizeHist(crop_hsv_val)# 
