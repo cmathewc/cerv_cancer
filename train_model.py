@@ -3,7 +3,7 @@ import numpy as np, os, csv, cv2
 import matplotlib.image as mpimg
 import matplotlib.pyplot as plt
 import sklearn
-from keras.models import Sequential
+from keras.models import Sequential, load_model
 from keras.layers import Flatten, Dense, Lambda, Dropout, Cropping2D, BatchNormalization, Activation
 from keras.layers.convolutional import Convolution2D
 from keras.layers.pooling import MaxPooling2D
@@ -82,9 +82,9 @@ def locnet():
 
 ### User model parameters
 os.chdir("/Data/cerv_cancer") 
-log_file = './img_key.csv'
+log_file = './img_key_complete.csv'
     
-num_epochs = 200
+num_epochs = 25
 batchSize = 32              # Select batch size
 Activation_type = 'relu'    # Select activation type
 nb_samples = 3
@@ -150,15 +150,11 @@ model.add(Dense(nb_samples, activation="softmax"))
 model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
 
 checkpointer = ModelCheckpoint(filepath="./output/weights.hdf5", verbose=1, save_best_only=True, save_weights_only=True)
-# history_object = model.fit(X_train, y_train, validation_split=0.2, show_accuracy=True, shuffle=True, nb_epoch=epochs)
+
 #history_object = model.fit(img_data, label_data, batch_size= batchSize, 
 #                                     validation_split= 0.2, shuffle = 1, 
 #                                     epochs = num_epochs, callbacks = [checkpointer], verbose = 1)
 
-#a = next(train_generator)
-#b = next(validation_generator)
-#print(len(a))
-#print(len(b))
 history_object = model.fit_generator(train_generator, steps_per_epoch = np.floor(len(train_samples)/batchSize).astype('int'),
                                      validation_data =validation_generator, validation_steps = np.floor(len(train_samples)/batchSize).astype('int'), 
                                      epochs=num_epochs, verbose = 1, callbacks = [checkpointer])
