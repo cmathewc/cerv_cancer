@@ -89,13 +89,13 @@ def hist_eq_crop_img(img):
         cv2.destroyAllWindows()
     
 #    return img_bgr_crop
-    return cv2.resize(cv2.cvtColor(img_crop_hsv, cv2.COLOR_HSV2BGR), dsize = (512, 512))
+    return cv2.resize(cv2.cvtColor(img_crop_hsv, cv2.COLOR_HSV2BGR), dsize = (384, 512))
 
 def process_image(img_path):
   try:
     full_img = cv2.imread(img_path)
     dsample_img = hist_eq_crop_img(full_img)
-    cv2.imwrite(img_path.replace('Data/test','Data/test_small'), dsample_img)
+    cv2.imwrite(img_path.replace('Data/test','Data/test_rect'), dsample_img)
   except:
     print(img_path)
     
@@ -115,11 +115,11 @@ if __name__ == '__main__':
         pool.close()
         pool.terminate()
         pool.join()
-
+#    i = 0;
 #        for i in range(len(img_path)):
-#            full_img = cv2.imread(img_path[i])
-#            dsample_img = hist_eq_crop_img(full_img)
-#            cv2.imwrite(img_path[i].replace('Data/test','Data/test_small'), dsample_img)
+#          full_img = cv2.imread(img_path[i])
+#          dsample_img = hist_eq_crop_img(full_img)
+#          cv2.imwrite(img_path[i].replace('Data/train','Data/train_rect'), dsample_img)
             
         csvfile.close()
     
