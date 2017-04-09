@@ -3,11 +3,13 @@ import numpy as np, os, csv, cv2
 import matplotlib.image as mpimg
 import matplotlib.pyplot as plt
 import sklearn
+from sklearn.model_selection import train_test_split
 from keras.models import Sequential, load_model
 from keras.layers import Flatten, Dense, Lambda, Dropout, Cropping2D, BatchNormalization, Activation
 from keras.layers.convolutional import Convolution2D
 from keras.layers.pooling import MaxPooling2D
 from keras.regularizers import l2
+import keras.optimizers as optimizers
 from keras import backend as K
 from keras.utils import np_utils
 from keras.callbacks import ModelCheckpoint
@@ -21,7 +23,7 @@ def readLog(filename, nb_classes=3):
     with open(filename) as csvDataFile:
         csvReader = csv.reader(csvDataFile)
         for row in csvReader:
-            img = cv2.imread(row[0]).astype('float32')
+            img = cv2.cvtColor(cv2.imread(row[0]).astype('float32'), cv2.COLOR_BGR2Lab)
             if img == None:
               print('Error in reading img in file {0}'.format(row[0]))
             type = np_utils.to_categorical(float(row[1]), nb_classes)
@@ -31,30 +33,46 @@ def readLog(filename, nb_classes=3):
     return image, category
     
 ### Generator function to read the training and validation data on the fly
+#def generator(samples, batch_size=32, nb_classes=3):
+#    num_samples = len(samples)
+#    while 1: # Loop forever so the generator never terminates
+#        sklearn.utils.shuffle(samples)
+#        for offset in range(0, num_samples, batch_size):
+#            batch_samples = samples[offset:offset+batch_size]
+#
+#            images = []
+#            img_category = []
+##            if (mode=='center'):
+#            for batch_sample in batch_samples:
+#              image = mpimg.imread(batch_sample[0]).astype('float32')
+#              img_type = float(batch_sample[1])
+#              images.append(image)
+#              img_category.append(img_type)
+#
+#            # trim image to only see section with road
+#            X_train = np.array(images)
+#            y_train = np_utils.to_categorical(np.array(img_category)-1, nb_classes)
+##            y_train = np.array(img_category)
+#            
+##            gen_output = tuple(sklearn.utils.shuffle(X_train, y_train))
+#            yield sklearn.utils.shuffle(X_train, y_train)
+
+
 def generator(samples, batch_size=32, nb_classes=3):
-    num_samples = len(samples)
-    while 1: # Loop forever so the generator never terminates
-        sklearn.utils.shuffle(samples)
-        for offset in range(0, num_samples, batch_size):
-            batch_samples = samples[offset:offset+batch_size]
-
-            images = []
-            img_category = []
-#            if (mode=='center'):
-            for batch_sample in batch_samples:
-              image = mpimg.imread(batch_sample[0]).astype('float32')
-              img_type = float(batch_sample[1])
-              images.append(image)
-              img_category.append(img_type)
-
-            # trim image to only see section with road
-            X_train = np.array(images)
-            y_train = np_utils.to_categorical(np.array(img_category)-1, nb_classes)
-#            y_train = np.array(img_category)
-            
-#            gen_output = tuple(sklearn.utils.shuffle(X_train, y_train))
-            yield sklearn.utils.shuffle(X_train, y_train)
-
+  num_samples = len(samples)
+  while 1:
+    rand_ints = np.random.randint(1, high = num_samples, size = batch_size)
+    batch_samples = [ samples[i] for i in rand_ints]
+    images = []
+    img_category= []
+    for batch_sample in batch_samples:
+      images.append(cv2.cvtColor(cv2.imread(batch_sample[0]).astype('float32'), cv2.COLOR_BGR2Lab))
+      img_category.append(batch_sample[1])
+      
+    X_train = np.array(images)
+    Y_train = np_utils.to_categorical(np.array(img_category).astype('float32') - 1, nb_classes)
+    
+    yield sklearn.utils.shuffle(X_train, Y_train)
 
 def locnet():
     b = np.zeros((2, 3), dtype='float32')
@@ -82,13 +100,13 @@ def locnet():
 
 ### User model parameters
 os.chdir("/Data/cerv_cancer") 
-log_file = './img_key_complete.csv'
+log_file = './img_key_train.csv'
     
-num_epochs = 25
+num_epochs = 150
 batchSize = 32              # Select batch size
 Activation_type = 'relu'    # Select activation type
 nb_samples = 3
-inputShape = (512, 512,3)
+inputShape = (512, 384, 3)
 regularization_rate = 0.04
 dropout_prob = 0.4
 
@@ -103,7 +121,7 @@ csvfile.close()
 print('Total number of samples = {}'.format(len(samples)))
 
 ### Split captured data as Training and Validation Set
-from sklearn.model_selection import train_test_split
+
 train_samples, validation_samples = train_test_split(samples, test_size=0.2)
 
 
@@ -121,45 +139,54 @@ print('Training...')
 model = Sequential()
 # model.add(Cropping2D(cropping=((65,20), (0,0)), input_shape=inputShape))
 model.add(Lambda(lambda x: x/255.0 - 0.5, input_shape = inputShape))
-model.add(BatchNormalization())
+#model.add(BatchNormalization())
 #model.add(SpatialTransformer(localization_net=locnet(), output_size=(512, 512), input_shape=inputShape))
-model.add(Convolution2D(16, (7, 7), padding='same', subsample=(2,2), activation=Activation_type, 
+model.add(Convolution2D(64, (3, 3), padding='same', subsample=(2,2), activation=Activation_type, 
                         kernel_regularizer=l2(regularization_rate)))
-model.add(BatchNormalization())
-model.add(Convolution2D(32, (5, 5), padding='same', activation=Activation_type, kernel_regularizer=l2(regularization_rate)))
+#model.add(BatchNormalization())
+model.add(MaxPooling2D(pool_size=(2, 2)))
 model.add(Convolution2D(64, (5, 5), padding='same', activation=Activation_type, kernel_regularizer=l2(regularization_rate)))
+model.add(Convolution2D(64, (7, 7), padding='same', activation=Activation_type, kernel_regularizer=l2(regularization_rate)))
 # model.add(BatchNormalization())
-model.add(Convolution2D(128, (5, 5), padding='same', activation=Activation_type, kernel_regularizer=l2(regularization_rate)))
-model.add(BatchNormalization())
+model.add(Convolution2D(128, (7, 7), padding='same', activation=Activation_type, kernel_regularizer=l2(regularization_rate)))
+#model.add(BatchNormalization())
 model.add(MaxPooling2D(pool_size=(2, 2)))
 model.add(Convolution2D(256, (5, 5), padding='same', activation=Activation_type, kernel_regularizer=l2(regularization_rate)))
 model.add(Convolution2D(256, (5, 5), padding='same', activation=Activation_type, kernel_regularizer=l2(regularization_rate)))
-model.add(BatchNormalization())
+#model.add(BatchNormalization())
 model.add(MaxPooling2D(pool_size=(2, 2)))
 model.add(Convolution2D(128, (3, 3), padding='same', activation=Activation_type, kernel_regularizer=l2(regularization_rate)))
-model.add(BatchNormalization())
+#model.add(BatchNormalization())
 model.add(Convolution2D(128, (3, 3), padding='same', activation=Activation_type, kernel_regularizer=l2(regularization_rate)))
-model.add(Convolution2D(64, (3, 3), padding='same', activation=Activation_type, kernel_regularizer=l2(regularization_rate)))
+#model.add(Convolution2D(128, (3, 3), padding='same', activation=Activation_type, kernel_regularizer=l2(regularization_rate)))
 model.add(MaxPooling2D(pool_size=(4, 4)))
 model.add(Flatten())
-model.add(Dense(256))
+#model.add(Dense(64))
 model.add(Dropout(dropout_prob))
 model.add(Dense(nb_samples, activation="softmax"))
 
 
-model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
+optimize_adam = optimizers.Adam(lr=0.00001, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=1e-9)
+model.compile(loss='categorical_crossentropy', optimizer= optimize_adam, metrics=['accuracy'])
 
 checkpointer = ModelCheckpoint(filepath="./output/weights.hdf5", verbose=1, save_best_only=True, save_weights_only=True)
 
 #history_object = model.fit(img_data, label_data, batch_size= batchSize, 
 #                                     validation_split= 0.2, shuffle = 1, 
 #                                     epochs = num_epochs, callbacks = [checkpointer], verbose = 1)
+#
 
-history_object = model.fit_generator(train_generator, steps_per_epoch = np.floor(len(train_samples)/batchSize).astype('int'),
-                                     validation_data =validation_generator, validation_steps = np.floor(len(train_samples)/batchSize).astype('int'), 
-                                     epochs=num_epochs, verbose = 1, callbacks = [checkpointer])
+#a = next(train_generator)
+try:
+  history_object = model.fit_generator(train_generator, steps_per_epoch = np.floor(len(train_samples)/batchSize), 
+                                       validation_data =validation_generator, validation_steps = np.floor(len(validation_samples)/batchSize).astype('int'), 
+                                       epochs=num_epochs, verbose = 1, callbacks = [checkpointer])
+except:
+  train_generator.close()
+  validation_generator.close()
 
-
+train_generator.close()
+validation_generator.close()
 
 model.save('./output/model.h5')
 
