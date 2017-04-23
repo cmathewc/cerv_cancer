@@ -66,7 +66,10 @@ def generator(samples, batch_size=32, nb_classes=3):
     images = []
     img_category= []
     for batch_sample in batch_samples:
-      images.append(cv2.cvtColor(cv2.imread(batch_sample[0]).astype('float32'), cv2.COLOR_BGR2Lab))
+      try:
+        images.append(cv2.cvtColor(cv2.imread(batch_sample[0]).astype('float32'), cv2.COLOR_BGR2Lab))
+      except:
+        print(batch_sample[0])          
       img_category.append(batch_sample[1])
       
     X_train = np.array(images)
@@ -102,11 +105,11 @@ def locnet():
 os.chdir("/Data/cerv_cancer") 
 log_file = './img_key_train.csv'
     
-num_epochs = 150
+num_epochs = 200
 batchSize = 32              # Select batch size
 Activation_type = 'relu'    # Select activation type
 nb_samples = 3
-inputShape = (512, 384, 3)
+inputShape = (256, 192, 3)
 regularization_rate = 0.04
 dropout_prob = 0.4
 
@@ -137,16 +140,18 @@ print('Generator initialized...')
 print('Training...')
 ### Setup the Keras model
 model = Sequential()
-# model.add(Cropping2D(cropping=((65,20), (0,0)), input_shape=inputShape))
-model.add(Lambda(lambda x: x/255.0 - 0.5, input_shape = inputShape))
+model.add(Cropping2D(cropping=((65,20), (0,0)), input_shape=inputShape))
+model.add(Lambda(lambda x: x/255.0 - 0.5))
 #model.add(BatchNormalization())
 #model.add(SpatialTransformer(localization_net=locnet(), output_size=(512, 512), input_shape=inputShape))
-model.add(Convolution2D(64, (3, 3), padding='same', subsample=(2,2), activation=Activation_type, 
+model.add(Convolution2D(512, (5, 5), padding='same', subsample=(2,2), activation=Activation_type, 
                         kernel_regularizer=l2(regularization_rate)))
 #model.add(BatchNormalization())
+#model.add(MaxPooling2D(pool_size=(2, 2)))
+model.add(Convolution2D(128, (3, 3), padding='same', activation=Activation_type, kernel_regularizer=l2(regularization_rate)))
 model.add(MaxPooling2D(pool_size=(2, 2)))
-model.add(Convolution2D(64, (5, 5), padding='same', activation=Activation_type, kernel_regularizer=l2(regularization_rate)))
-model.add(Convolution2D(64, (7, 7), padding='same', activation=Activation_type, kernel_regularizer=l2(regularization_rate)))
+model.add(Convolution2D(128, (5, 5), padding='same', activation=Activation_type, kernel_regularizer=l2(regularization_rate)))
+model.add(MaxPooling2D(pool_size=(2, 2)))
 # model.add(BatchNormalization())
 model.add(Convolution2D(128, (7, 7), padding='same', activation=Activation_type, kernel_regularizer=l2(regularization_rate)))
 #model.add(BatchNormalization())
@@ -181,24 +186,34 @@ try:
   history_object = model.fit_generator(train_generator, steps_per_epoch = np.floor(len(train_samples)/batchSize), 
                                        validation_data =validation_generator, validation_steps = np.floor(len(validation_samples)/batchSize).astype('int'), 
                                        epochs=num_epochs, verbose = 1, callbacks = [checkpointer])
+  
+  
+  train_generator.close()
+  validation_generator.close()
+  
+  model.save('./output/model.h5')
+  
+  ### print the keys contained in the history object
+  print(history_object.history.keys())
+  
+  ### plot the training and validation loss for each epoch
+  plt.plot(history_object.history['loss'])
+  plt.plot(history_object.history['val_loss'])
+  plt.title('model loss')
+  plt.ylabel('Loss')
+  plt.xlabel('epoch')
+  plt.legend(['training set', 'validation set'], loc='upper right')
+  plt.show()
+  plt.savefig('model_loss_progression.png')
+  
+  plt.plot(history_object.history['acc'])
+  plt.plot(history_object.history['val_acc'])
+  plt.title('model accuracy')
+  plt.ylabel('Accuracy')
+  plt.xlabel('epoch')
+  plt.legend(['training set', 'validation set'], loc='upper right')
+  plt.show()
+  plt.savefig('model_accuracy_progression.png')
 except:
   train_generator.close()
   validation_generator.close()
-
-train_generator.close()
-validation_generator.close()
-
-model.save('./output/model.h5')
-
-### print the keys contained in the history object
-print(history_object.history.keys())
-
-### plot the training and validation loss for each epoch
-plt.plot(history_object.history['loss'])
-plt.plot(history_object.history['val_loss'])
-plt.title('model loss')
-plt.ylabel('Loss')
-plt.xlabel('epoch')
-plt.legend(['training set', 'validation set'], loc='upper right')
-plt.show()
-plt.savefig('model_loss_progression.png')
