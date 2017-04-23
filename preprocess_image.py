@@ -10,6 +10,12 @@ Preprocess images used for cervical cancer screening challenge
 import os, cv2, csv
 import multiprocessing
 import numpy as np
+
+import json
+
+import retinex
+
+
 os.chdir("/Data/cerv_cancer") 
 
 file_path = os.path.join(os.getcwd(), 'Data','train', 'Type_1', '0.jpg')
@@ -89,28 +95,52 @@ def hist_eq_crop_img(img):
         cv2.destroyAllWindows()
     
 #    return img_bgr_crop
-    return cv2.resize(cv2.cvtColor(img_crop_hsv, cv2.COLOR_HSV2BGR), dsize = (384, 512))
+#    return cv2.resize(cv2.cvtColor(img_crop_hsv, cv2.COLOR_HSV2BGR), dsize = (768, 1024))
+    return cv2.cvtColor(img_crop_hsv, cv2.COLOR_HSV2BGR)
+    
 
-def process_image(img_path):
+def process_image_hist_eq_crop(img_path):
   try:
     full_img = cv2.imread(img_path)
     dsample_img = hist_eq_crop_img(full_img)
-    cv2.imwrite(img_path.replace('Data/test','Data/test_rect'), dsample_img)
+    cv2.imwrite(img_path.replace('Data/train','Data/train_process'), dsample_img)
   except:
     print(img_path)
     
-
+def process_image_retinex(img_path):
+  
+  with open('config.json', 'r') as f:
+    config = json.load(f)
+    
+    
+  img = crop_resize_img(cv2.imread(img_path))
+  
+  img_msrcp = retinex.MSRCP(img, config['sigma_list'], config['low_clip'], config['high_clip'])
+  
+  cv2.imwrite(img_path.replace('Data/train','Data/train_r'), img_msrcp)
+  
+  img_msrcp = retinex.MSRCP(hist_eq_crop_img(img), config['sigma_list'], config['low_clip'], config['high_clip'])
+  
+  cv2.imwrite(img_path.replace('Data/train','Data/train_r2'), img_msrcp)
+  
+  img_msrcp = hist_eq_crop_img(retinex.MSRCP(img, config['sigma_list'], config['low_clip'], config['high_clip']))
+  
+  cv2.imwrite(img_path.replace('Data/train','Data/train_r3'), img_msrcp)
+  
+  
 ###def read_process_image():
 if __name__ == '__main__':
     os.chdir("/Data/cerv_cancer") 
     img_path = [];
     jobs = [];
-    with open('img_key_test.csv','r') as csvfile:
+    with open('img_key_train.csv','r') as csvfile:
         reader = csv.reader(csvfile)
         pool = multiprocessing.Pool(6)
         for row in reader:
-            img_path.append(row[0])
-        pool.map(process_image, img_path)
+          img_path.append(row[0])
+#        pool.map(process_image_hist_eq_crop, img_path)
+        pool.map(process_image_retinex, img_path)
+        
         
         pool.close()
         pool.terminate()
