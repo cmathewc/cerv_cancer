@@ -58,7 +58,7 @@ def readLog(filename, nb_classes=3):
 #            yield sklearn.utils.shuffle(X_train, y_train)
 
 
-def generator(samples, batch_size=32, nb_classes=3):
+def generator(samples, batch_size=32, nb_classes=2):
   num_samples = len(samples)
   while 1:
     rand_ints = np.random.randint(1, high = num_samples, size = batch_size)
@@ -67,13 +67,13 @@ def generator(samples, batch_size=32, nb_classes=3):
     img_category= []
     for batch_sample in batch_samples:
       try:
-        images.append(cv2.cvtColor(cv2.imread(batch_sample[0]).astype('float32'), cv2.COLOR_BGR2Lab))
+        images.append(cv2.resize(cv2.cvtColor(cv2.imread(batch_sample[0]).astype('float32'), cv2.COLOR_BGR2Lab), dsize = (192, 256)))
       except:
         print(batch_sample[0])          
       img_category.append(batch_sample[1])
       
     X_train = np.array(images)
-    Y_train = np_utils.to_categorical(np.array(img_category).astype('float32') - 1, nb_classes)
+    Y_train = np_utils.to_categorical(np.array(img_category).astype('float32'), nb_classes)
     
     yield sklearn.utils.shuffle(X_train, Y_train)
 
@@ -102,118 +102,141 @@ def locnet():
     return locnet
 
 ### User model parameters
-os.chdir("/Data/cerv_cancer") 
-log_file = './img_key_train.csv'
+
+def train_model(log_file):
+  
+#  log_file = './img_key_train.csv'
+      
+  csv_path_parts = csv_path.split('_')
+  img_class = csv_path_parts[-1].split('.')[0]
+  
+  num_epochs = 200
+  batchSize = 32              # Select batch size
+  Activation_type = 'relu'    # Select activation type
+  nb_samples = 2
+  inputShape = (256, 192, 3)
+  regularization_rate = 0.04
+  dropout_prob = 0.4
+  
+  ### Read the drive log csv file
+  samples = []
+  with open(log_file) as csvfile:
+      reader = csv.reader(csvfile)
+      for line in reader:
+          samples.append(line)
+          
+  csvfile.close()
+  print('Total number of samples = {}'.format(len(samples)))
+  
+  ### Split captured data as Training and Validation Set
+  
+  train_samples, validation_samples = train_test_split(samples, test_size=0.2)
+  
+  
+  ### compile and train the model using the generator function
+  train_generator = generator(train_samples, batch_size=batchSize)
+  validation_generator = generator(validation_samples, batch_size=batchSize)
+  print('Generator initialized...')
+  
+  #data = np.load('img_data.npz')
+  #img_data = data['img_data']
+  #label_data = data['label_data']
+  
+  print('Training...')
+  ### Setup the Keras model
+  model = Sequential()
+  model.add(Cropping2D(cropping=((65,20), (0,0)), input_shape=inputShape))
+  model.add(Lambda(lambda x: x/255.0 - 0.5))
+  #model.add(BatchNormalization())
+  #model.add(SpatialTransformer(localization_net=locnet(), output_size=(512, 512), input_shape=inputShape))
+  model.add(Convolution2D(512, (5, 5), padding='same', subsample=(2,2), activation=Activation_type, 
+                          kernel_regularizer=l2(regularization_rate)))
+  #model.add(BatchNormalization())
+  #model.add(MaxPooling2D(pool_size=(2, 2)))
+  model.add(Convolution2D(128, (3, 3), padding='same', activation=Activation_type, kernel_regularizer=l2(regularization_rate)))
+  model.add(MaxPooling2D(pool_size=(2, 2)))
+  model.add(Convolution2D(128, (5, 5), padding='same', activation=Activation_type, kernel_regularizer=l2(regularization_rate)))
+  model.add(MaxPooling2D(pool_size=(2, 2)))
+  # model.add(BatchNormalization())
+  model.add(Convolution2D(128, (7, 7), padding='same', activation=Activation_type, kernel_regularizer=l2(regularization_rate)))
+  #model.add(BatchNormalization())
+  model.add(MaxPooling2D(pool_size=(2, 2)))
+  model.add(Convolution2D(256, (5, 5), padding='same', activation=Activation_type, kernel_regularizer=l2(regularization_rate)))
+  model.add(Convolution2D(256, (5, 5), padding='same', activation=Activation_type, kernel_regularizer=l2(regularization_rate)))
+  #model.add(BatchNormalization())
+  model.add(MaxPooling2D(pool_size=(2, 2)))
+  model.add(Convolution2D(128, (3, 3), padding='same', activation=Activation_type, kernel_regularizer=l2(regularization_rate)))
+  #model.add(BatchNormalization())
+  model.add(Convolution2D(128, (3, 3), padding='same', activation=Activation_type, kernel_regularizer=l2(regularization_rate)))
+  #model.add(Convolution2D(128, (3, 3), padding='same', activation=Activation_type, kernel_regularizer=l2(regularization_rate)))
+  model.add(MaxPooling2D(pool_size=(4, 4)))
+  model.add(Flatten())
+  #model.add(Dense(64))
+  model.add(Dropout(dropout_prob))
+  model.add(Dense(nb_samples, activation="softmax"))
+  
+  
+  optimize_adam = optimizers.Adam(lr=0.00001, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=1e-9)
+  model.compile(loss='categorical_crossentropy', optimizer= optimize_adam, metrics=['accuracy'])
+  
+  checkpointer = ModelCheckpoint(filepath= os.sep.join(('./output','_'.join(('img_class',str(img_class),'weights.hdf5')))), verbose=1, save_best_only=True, save_weights_only=True)
+  
+  #history_object = model.fit(img_data, label_data, batch_size= batchSize, 
+  #                                     validation_split= 0.2, shuffle = 1, 
+  #                                     epochs = num_epochs, callbacks = [checkpointer], verbose = 1)
+  #
+  
+  #a = next(train_generator)
+#  model_op = -1
+  try:
+    history_object = model.fit_generator(train_generator, steps_per_epoch = np.floor(len(train_samples)/batchSize), 
+                                         validation_data =validation_generator, validation_steps = np.floor(len(validation_samples)/batchSize).astype('int'), 
+                                         epochs=num_epochs, verbose = 1, callbacks = [checkpointer])
     
-num_epochs = 200
-batchSize = 32              # Select batch size
-Activation_type = 'relu'    # Select activation type
-nb_samples = 3
-inputShape = (256, 192, 3)
-regularization_rate = 0.04
-dropout_prob = 0.4
-
-### Read the drive log csv file
-samples = []
-with open(log_file) as csvfile:
-    reader = csv.reader(csvfile)
-    for line in reader:
-        samples.append(line)
-        
-csvfile.close()
-print('Total number of samples = {}'.format(len(samples)))
-
-### Split captured data as Training and Validation Set
-
-train_samples, validation_samples = train_test_split(samples, test_size=0.2)
-
-
-### compile and train the model using the generator function
-train_generator = generator(train_samples, batch_size=batchSize)
-validation_generator = generator(validation_samples, batch_size=batchSize)
-print('Generator initialized...')
-
-#data = np.load('img_data.npz')
-#img_data = data['img_data']
-#label_data = data['label_data']
-
-print('Training...')
-### Setup the Keras model
-model = Sequential()
-model.add(Cropping2D(cropping=((65,20), (0,0)), input_shape=inputShape))
-model.add(Lambda(lambda x: x/255.0 - 0.5))
-#model.add(BatchNormalization())
-#model.add(SpatialTransformer(localization_net=locnet(), output_size=(512, 512), input_shape=inputShape))
-model.add(Convolution2D(512, (5, 5), padding='same', subsample=(2,2), activation=Activation_type, 
-                        kernel_regularizer=l2(regularization_rate)))
-#model.add(BatchNormalization())
-#model.add(MaxPooling2D(pool_size=(2, 2)))
-model.add(Convolution2D(128, (3, 3), padding='same', activation=Activation_type, kernel_regularizer=l2(regularization_rate)))
-model.add(MaxPooling2D(pool_size=(2, 2)))
-model.add(Convolution2D(128, (5, 5), padding='same', activation=Activation_type, kernel_regularizer=l2(regularization_rate)))
-model.add(MaxPooling2D(pool_size=(2, 2)))
-# model.add(BatchNormalization())
-model.add(Convolution2D(128, (7, 7), padding='same', activation=Activation_type, kernel_regularizer=l2(regularization_rate)))
-#model.add(BatchNormalization())
-model.add(MaxPooling2D(pool_size=(2, 2)))
-model.add(Convolution2D(256, (5, 5), padding='same', activation=Activation_type, kernel_regularizer=l2(regularization_rate)))
-model.add(Convolution2D(256, (5, 5), padding='same', activation=Activation_type, kernel_regularizer=l2(regularization_rate)))
-#model.add(BatchNormalization())
-model.add(MaxPooling2D(pool_size=(2, 2)))
-model.add(Convolution2D(128, (3, 3), padding='same', activation=Activation_type, kernel_regularizer=l2(regularization_rate)))
-#model.add(BatchNormalization())
-model.add(Convolution2D(128, (3, 3), padding='same', activation=Activation_type, kernel_regularizer=l2(regularization_rate)))
-#model.add(Convolution2D(128, (3, 3), padding='same', activation=Activation_type, kernel_regularizer=l2(regularization_rate)))
-model.add(MaxPooling2D(pool_size=(4, 4)))
-model.add(Flatten())
-#model.add(Dense(64))
-model.add(Dropout(dropout_prob))
-model.add(Dense(nb_samples, activation="softmax"))
-
-
-optimize_adam = optimizers.Adam(lr=0.00001, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=1e-9)
-model.compile(loss='categorical_crossentropy', optimizer= optimize_adam, metrics=['accuracy'])
-
-checkpointer = ModelCheckpoint(filepath="./output/weights.hdf5", verbose=1, save_best_only=True, save_weights_only=True)
-
-#history_object = model.fit(img_data, label_data, batch_size= batchSize, 
-#                                     validation_split= 0.2, shuffle = 1, 
-#                                     epochs = num_epochs, callbacks = [checkpointer], verbose = 1)
-#
-
-#a = next(train_generator)
-try:
-  history_object = model.fit_generator(train_generator, steps_per_epoch = np.floor(len(train_samples)/batchSize), 
-                                       validation_data =validation_generator, validation_steps = np.floor(len(validation_samples)/batchSize).astype('int'), 
-                                       epochs=num_epochs, verbose = 1, callbacks = [checkpointer])
+    
+    train_generator.close()
+    validation_generator.close()
+    
+  #    model_op = model
+  #    model.save('./output/model.h5')
+    
+    ### print the keys contained in the history object
+    print(history_object.history.keys())
+    
+    ### plot the training and validation loss for each epoch
+    plt.plot(history_object.history['loss'])
+    plt.plot(history_object.history['val_loss'])
+    plt.title('model loss : Type ' + str(img_class))
+    plt.ylabel('Loss')
+    plt.xlabel('epoch')
+    plt.legend(['training set', 'validation set'], loc='upper right')
+    plt.show()
+    plt.savefig('model_loss_progression.png')
+    
+    plt.plot(history_object.history['acc'])
+    plt.plot(history_object.history['val_acc'])
+    plt.title('model accuracy : Type ' + str(img_class))
+    plt.ylabel('Accuracy')
+    plt.xlabel('epoch')
+    plt.legend(['training set', 'validation set'], loc='upper right')
+    plt.show()
+    plt.savefig('model_accuracy_progression.png')
+    return model
   
+  except:
+    train_generator.close()
+    validation_generator.close()
+    return -1
+    
+if __name__ == '__main__':
   
-  train_generator.close()
-  validation_generator.close()
+  os.chdir("/Data/cerv_cancer") 
   
-  model.save('./output/model.h5')
-  
-  ### print the keys contained in the history object
-  print(history_object.history.keys())
-  
-  ### plot the training and validation loss for each epoch
-  plt.plot(history_object.history['loss'])
-  plt.plot(history_object.history['val_loss'])
-  plt.title('model loss')
-  plt.ylabel('Loss')
-  plt.xlabel('epoch')
-  plt.legend(['training set', 'validation set'], loc='upper right')
-  plt.show()
-  plt.savefig('model_loss_progression.png')
-  
-  plt.plot(history_object.history['acc'])
-  plt.plot(history_object.history['val_acc'])
-  plt.title('model accuracy')
-  plt.ylabel('Accuracy')
-  plt.xlabel('epoch')
-  plt.legend(['training set', 'validation set'], loc='upper right')
-  plt.show()
-  plt.savefig('model_accuracy_progression.png')
-except:
-  train_generator.close()
-  validation_generator.close()
+  for i in range(1,4):
+    csv_path = '.'.join(('_'.join(('img_key_train_process', str(i))), 'csv'))
+    model = train_model(csv_path)
+    
+    if model != -1:
+      model.save(os.sep.join(('./output', '_'.join(('img_class',str(i),'model.h5')))))
+
+    
