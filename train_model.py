@@ -110,8 +110,8 @@ def train_model(log_file):
   csv_path_parts = csv_path.split('_')
   img_class = csv_path_parts[-1].split('.')[0]
   
-  num_epochs = 200
-  batchSize = 32              # Select batch size
+  num_epochs = 50
+  batchSize = 150              # Select batch size
   Activation_type = 'relu'    # Select activation type
   nb_samples = 2
   inputShape = (256, 192, 3)
@@ -145,34 +145,42 @@ def train_model(log_file):
   print('Training...')
   ### Setup the Keras model
   model = Sequential()
-  model.add(Cropping2D(cropping=((65,20), (0,0)), input_shape=inputShape))
-  model.add(Lambda(lambda x: x/255.0 - 0.5))
+  model.add(Cropping2D(cropping=((0, 0), (0,0)), input_shape=inputShape))
+#  model.add(Lambda(lambda x: x/255.0 - 0.5))
   #model.add(BatchNormalization())
   #model.add(SpatialTransformer(localization_net=locnet(), output_size=(512, 512), input_shape=inputShape))
-  model.add(Convolution2D(512, (5, 5), padding='same', subsample=(2,2), activation=Activation_type, 
+  model.add(Convolution2D(64, (3, 3), padding='same', subsample=(2,2), activation=Activation_type, 
                           kernel_regularizer=l2(regularization_rate)))
+  model.add(Convolution2D(64, (3, 3), padding='same', subsample=(2,2), activation=Activation_type, 
+                          kernel_regularizer=l2(regularization_rate)))
+  model.add(MaxPooling2D((2, 2), strides=(2, 2)))
   #model.add(BatchNormalization())
-  #model.add(MaxPooling2D(pool_size=(2, 2)))
+  
   model.add(Convolution2D(128, (3, 3), padding='same', activation=Activation_type, kernel_regularizer=l2(regularization_rate)))
-  model.add(MaxPooling2D(pool_size=(2, 2)))
-  model.add(Convolution2D(128, (5, 5), padding='same', activation=Activation_type, kernel_regularizer=l2(regularization_rate)))
-  model.add(MaxPooling2D(pool_size=(2, 2)))
+  model.add(Convolution2D(128, (3, 3), padding='same', activation=Activation_type, kernel_regularizer=l2(regularization_rate)))
+  model.add(MaxPooling2D((2, 2), strides=(2, 2)))
   # model.add(BatchNormalization())
-  model.add(Convolution2D(128, (7, 7), padding='same', activation=Activation_type, kernel_regularizer=l2(regularization_rate)))
+  model.add(Convolution2D(256, (3, 3), padding='same', activation=Activation_type, kernel_regularizer=l2(regularization_rate)))
+  model.add(Convolution2D(256, (3, 3), padding='same', activation=Activation_type, kernel_regularizer=l2(regularization_rate)))
+  model.add(Convolution2D(256, (3, 3), padding='same', activation=Activation_type, kernel_regularizer=l2(regularization_rate)))
   #model.add(BatchNormalization())
-  model.add(MaxPooling2D(pool_size=(2, 2)))
-  model.add(Convolution2D(256, (5, 5), padding='same', activation=Activation_type, kernel_regularizer=l2(regularization_rate)))
-  model.add(Convolution2D(256, (5, 5), padding='same', activation=Activation_type, kernel_regularizer=l2(regularization_rate)))
+  model.add(MaxPooling2D((2, 2), strides=(2, 2)))
+  
+  model.add(Convolution2D(512, (3, 3), padding='same', activation=Activation_type, kernel_regularizer=l2(regularization_rate)))
+  model.add(Convolution2D(512, (3, 3), padding='same', activation=Activation_type, kernel_regularizer=l2(regularization_rate)))
+  model.add(Convolution2D(512, (3, 3), padding='same', activation=Activation_type, kernel_regularizer=l2(regularization_rate)))
+  model.add(MaxPooling2D((2, 2), strides=(2, 2)))
   #model.add(BatchNormalization())
-  model.add(MaxPooling2D(pool_size=(2, 2)))
-  model.add(Convolution2D(128, (3, 3), padding='same', activation=Activation_type, kernel_regularizer=l2(regularization_rate)))
-  #model.add(BatchNormalization())
-  model.add(Convolution2D(128, (3, 3), padding='same', activation=Activation_type, kernel_regularizer=l2(regularization_rate)))
-  #model.add(Convolution2D(128, (3, 3), padding='same', activation=Activation_type, kernel_regularizer=l2(regularization_rate)))
-  model.add(MaxPooling2D(pool_size=(4, 4)))
+  
+  model.add(Convolution2D(512, (3, 3), padding='same', activation=Activation_type, kernel_regularizer=l2(regularization_rate)))
+  model.add(Convolution2D(512, (3, 3), padding='same', activation=Activation_type, kernel_regularizer=l2(regularization_rate)))
+  model.add(Convolution2D(512, (3, 3), padding='same', activation=Activation_type, kernel_regularizer=l2(regularization_rate)))
+  model.add(MaxPooling2D((2, 2), strides=(2, 2)))
+  
   model.add(Flatten())
-  #model.add(Dense(64))
-  model.add(Dropout(dropout_prob))
+  model.add(Dense(4096))
+  model.add(Dense(4096))
+#  model.add(Dropout(dropout_prob))
   model.add(Dense(nb_samples, activation="softmax"))
   
   
@@ -189,8 +197,8 @@ def train_model(log_file):
   #a = next(train_generator)
 #  model_op = -1
   try:
-    history_object = model.fit_generator(train_generator, steps_per_epoch = np.floor(len(train_samples)/batchSize), 
-                                         validation_data =validation_generator, validation_steps = np.floor(len(validation_samples)/batchSize).astype('int'), 
+    history_object = model.fit_generator(train_generator, steps_per_epoch = 200, 
+                                         validation_data =validation_generator, validation_steps = 50, 
                                          epochs=num_epochs, verbose = 1, callbacks = [checkpointer])
     
     
@@ -202,25 +210,25 @@ def train_model(log_file):
     
     ### print the keys contained in the history object
     print(history_object.history.keys())
-    
-    ### plot the training and validation loss for each epoch
-    plt.plot(history_object.history['loss'])
-    plt.plot(history_object.history['val_loss'])
-    plt.title('model loss : Type ' + str(img_class))
-    plt.ylabel('Loss')
-    plt.xlabel('epoch')
-    plt.legend(['training set', 'validation set'], loc='upper right')
-    plt.show()
-    plt.savefig('model_loss_progression.png')
-    
-    plt.plot(history_object.history['acc'])
-    plt.plot(history_object.history['val_acc'])
-    plt.title('model accuracy : Type ' + str(img_class))
-    plt.ylabel('Accuracy')
-    plt.xlabel('epoch')
-    plt.legend(['training set', 'validation set'], loc='upper right')
-    plt.show()
-    plt.savefig('model_accuracy_progression.png')
+#    
+#    ### plot the training and validation loss for each epoch
+#    plt.plot(history_object.history['loss'])
+#    plt.plot(history_object.history['val_loss'])
+#    plt.title('model loss : Type ' + str(img_class))
+#    plt.ylabel('Loss')
+#    plt.xlabel('epoch')
+#    plt.legend(['training set', 'validation set'], loc='upper right')
+#    plt.show()
+#    plt.savefig('model_loss_progression.png')
+#    
+#    plt.plot(history_object.history['acc'])
+#    plt.plot(history_object.history['val_acc'])
+#    plt.title('model accuracy : Type ' + str(img_class))
+#    plt.ylabel('Accuracy')
+#    plt.xlabel('epoch')
+#    plt.legend(['training set', 'validation set'], loc='upper right')
+#    plt.show()
+#    plt.savefig('model_accuracy_progression.png')
     return model
   
   except:
